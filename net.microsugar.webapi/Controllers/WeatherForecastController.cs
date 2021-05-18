@@ -28,12 +28,16 @@ namespace net.microsugar.webapi.Controllers
 
         [HttpGet]
         //[Authorize]
-        [Authorize(Roles = "tRole")]
+        [Authorize(Policy = "tRolePolicy")]
+        //[Authorize(Roles = "tRole")]
         public IEnumerable<WeatherForecast> Get()
         {
             try
             {
                 var user = this.User;
+
+                var role = user.Claims.Where(n => n.Type == ClaimTypes.Role).FirstOrDefault();
+                var role2 = user.Claims.Where(n => n.Type == "role").FirstOrDefault();
 
                 var userId = this.User.Identities.FirstOrDefault().Claims.ToList().Where(n => n.Type == ClaimTypes.NameIdentifier).FirstOrDefault();
 
