@@ -28,7 +28,7 @@ namespace net.microsugar.webapi.Controllers
 
         [HttpGet]
         //[Authorize]
-        [Authorize(Roles = "AdminRole")]
+        [Authorize(Roles = "tRole")]
         public IEnumerable<WeatherForecast> Get()
         {
             try

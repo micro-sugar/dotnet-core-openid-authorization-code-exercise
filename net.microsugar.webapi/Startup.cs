@@ -48,6 +48,8 @@ namespace net.microsugar.webapi
 
                     options.Authority = Configuration["auth:oidc:AuthBaseUri"];
                     options.ClientId = Configuration["auth:oidc:ClientId"];
+                    options.ClientSecret = Configuration["auth:oidc:ClientSecret"];
+                    options.UsePkce = true;
 
                     // The "offline_access" scope is needed to get a refresh token
                     options.Scope.Clear();
@@ -55,7 +57,7 @@ namespace net.microsugar.webapi
                     options.Scope.Add(Configuration["auth:oidc:Scopes"]);
 
                     options.GetClaimsFromUserInfoEndpoint = true; // 由 UserInfo Endpoint 取得用戶資料(包含Role)
-                    options.ClaimActions.MapJsonKey("role", "role", "role"); // for [Authorize(Roles= "AdminRole")] 需要
+                    options.ClaimActions.MapJsonKey("role", "role", "role"); // for [Authorize(Roles= "tRole")] 需要
                     options.UseTokenLifetime = true;
 
                     options.TokenValidationParameters = new TokenValidationParameters
