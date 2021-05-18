@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -14,6 +16,7 @@ using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace net.microsugar.webapi
@@ -39,41 +42,51 @@ namespace net.microsugar.webapi
                 options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
             })
-                .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme)
-                .AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
+            .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
+            {
+                // https://docs.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.authentication.openidconnect.openidconnectoptions?view=aspnetcore-3.1
+
+                options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+
+                options.Authority = Configuration["auth:oidc:AuthBaseUri"];
+                options.ClientId = Configuration["auth:oidc:ClientId"];
+                options.ClientSecret = Configuration["auth:oidc:ClientSecret"];
+                options.UsePkce = true;
+
+                // The "offline_access" scope is needed to get a refresh token
+                options.Scope.Clear();
+                options.Scope.Add("openid roles profile");
+                options.Scope.Add(Configuration["auth:oidc:Scopes"]);
+
+                options.GetClaimsFromUserInfoEndpoint = true; // 由 UserInfo Endpoint 取得用戶資料(包含Role)
+                options.ClaimActions.MapJsonKey("role", "role", "role"); // for [Authorize(Roles= "tRole")] 需要
+
+                options.UseTokenLifetime = true;
+
+                options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    // https://docs.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.authentication.openidconnect.openidconnectoptions?view=aspnetcore-3.1
+                    NameClaimType = "name",
+                    RoleClaimType = "role"
+                };
 
-                    options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-
-                    options.Authority = Configuration["auth:oidc:AuthBaseUri"];
-                    options.ClientId = Configuration["auth:oidc:ClientId"];
-                    options.ClientSecret = Configuration["auth:oidc:ClientSecret"];
-                    options.UsePkce = true;
-
-                    // The "offline_access" scope is needed to get a refresh token
-                    options.Scope.Clear();
-                    //options.Scope.Add("openid roles profile");
-                    options.Scope.Add(Configuration["auth:oidc:Scopes"]);
-
-                    options.GetClaimsFromUserInfoEndpoint = true; // 由 UserInfo Endpoint 取得用戶資料(包含Role)
-                    options.ClaimActions.MapJsonKey("role", "role", "role"); // for [Authorize(Roles= "tRole")] 需要
-                    options.UseTokenLifetime = true;
-
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        NameClaimType = "name",
-                        RoleClaimType = "role"
-                    };
-
-                    options.SaveTokens = true;
-                    options.ResponseType = OpenIdConnectResponseType.Code;
+                options.SaveTokens = true;
+                options.ResponseType = OpenIdConnectResponseType.Code;
 
 #if DEBUG
-                    // 接受 Authority 使用非Https
-                    options.RequireHttpsMetadata = false;
+                // 接受 Authority 使用非Https
+                options.RequireHttpsMetadata = false;
 #endif
+            });
+
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("WebpageCheckPolicy", policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireClaim(ClaimTypes.Webpage, "https://localhost:5001");
                 });
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -94,7 +107,9 @@ namespace net.microsugar.webapi
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapControllers();
+                endpoints.MapControllers()
+                    .RequireAuthorization("WebpageCheckPolicy")
+                    ;
             });
         }
     }
